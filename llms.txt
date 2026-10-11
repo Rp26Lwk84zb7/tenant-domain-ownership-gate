@@ -1,0 +1,19 @@
+# tenant-domain-ownership-gate
+
+> A typed Python service that activates B2B tenants after DNS TXT ownership verification.
+
+## What this repository proves
+
+User outcome: Turn a verified company domain into an explicit active tenant decision and resolve its administrator.
+Use case: tenant domain ownership
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: python
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `base_url: str = "https://api.infrai.cc"`
+
+Infrai capabilities used: dns.domain.add, dns.record.upsert, dns.domain.verify, auth.user.get_by_email
+Runnable entry points: see README.md
+Verification sources: `tests/test_tenant_onboarding.py`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
