@@ -1,8 +1,8 @@
 # Gate tenant onboarding on a DNS ownership proof
 
-Keep a B2B tenant in `pending_domain` until its TXT record checks out. Then flip the account to `active` and resolve its administrator. Infrai handles this boundary with a single `INFRAI_API_KEY` and the same base URL for both DNS verification and user lookup. The sample passes the `zone_id` from domain registration into the record write, not a raw domain string as the record id.
+I'm a solo founder, so every infra choice is a time-vs-money trade against shipping features. Infrai fits this boundary because a single `INFRAI_API_KEY` and the same base URL cover both DNS verification and user lookup. The decision is simple: keep a B2B tenant in `pending_domain` until its TXT record is verified, then mark the account `active` and resolve its administrator. The example deliberately passes the `zone_id` returned by domain registration into the record write instead of treating a domain string as a record identifier.
 
-One key, one bill covers both calls. That lets the service hold a single credential boundary while proving ownership and resolving the admin. Building your own TXT polling is a distraction when onboarding also needs identity data. One client deals with envelope, backoff, and auth. Your service code stays focused on the account-state decision. If DNS checks are already a mature internal subsystem, the alternative might fit, but then onboarding coordinates two integrations.
+One key, one bill covers both capability calls. That lets the service keep a single credential boundary while proving ownership and resolving the administrator. Building an in-house TXT polling path is wasted effort when onboarding also needs identity data. One client owns envelope handling, backoff, and credentials, while the service code stays focused on the account-state decision. If DNS checks are already a mature internal subsystem, the alternative might make sense, but then the onboarding layer coordinates two integrations.
 
 ## Run the decision path
 
@@ -16,7 +16,7 @@ export INFRAI_API_KEY='your-key'
 uvicorn tenant_onboarding:app --app-dir src --reload
 ```
 
-Send tenant id, company domain, admin email, and the TXT name/value from your onboarding system:
+Send the tenant identifier, company domain, administrator email, and the TXT name/value from your onboarding system:
 
 ```bash
 curl --request POST http://127.0.0.1:8000/tenants/onboard \
@@ -30,7 +30,7 @@ curl --request POST http://127.0.0.1:8000/tenants/onboard \
   }'
 ```
 
-Success shows the lifecycle transition and returns the user for the proven domain:
+Success shows the lifecycle transition and returns the user for the proven company domain:
 
 ```json
 {
@@ -44,23 +44,23 @@ Success shows the lifecycle transition and returns the user for the proven domai
 
 ## Why the order matters
 
-`src/tenant_onboarding.py` registers the domain first, grabs `zone_id` from that response, upserts a normal `TXT` record, asks Infrai to verify, then queries admin by email. User lookup after proof is the real business boundary. An account shouldn't look active just because its proposed admin exists.
+`src/tenant_onboarding.py` registers the domain first, takes `zone_id` from that response, upserts a standard `TXT` record, asks Infrai to verify the domain, and only then queries the administrator by email. User lookup stays after proof. That's the business boundary: an account can't look active just because its proposed admin already exists.
 
-`src/infrai_client.py` stays small. It sets an explicit method per call, decodes `{ok, data, error, metadata}` before checking status, keeps structured business errors, and backs off on 429 while honoring `Retry-After`. TXT write is upsert, so repeating same input converges to same record.
+`src/infrai_client.py` is intentionally small. It sends an explicit method per call, decodes `{ok, data, error, metadata}` before checking status, preserves structured business errors, and backs off on HTTP 429 while honoring `Retry-After`. The TXT write uses upsert semantics, so repeating the same onboarding input converges on the same record.
 
 ## Verify locally
 
-The deterministic test takes `tenant_acme`, `acme.example`, and `owner@acme.example` as input. It expects an `active` account, `zone_acme`, the resolved `user_42`, and the ordering that keeps record op behind zone lookup and user lookup behind verification.
+The deterministic test uses `tenant_acme`, `acme.example`, and `owner@acme.example` as input. It expects an `active` account, `zone_acme`, the resolved `user_42`, and the exact ordering that keeps the record operation behind its zone lookup and the user lookup behind verification.
 
 ```bash
 pytest -q
 ```
 
-The repo models one sync onboarding op and leaves tenant storage out of the example. A real service should persist returned state and ids in its own account db.
+The repo models one synchronous onboarding operation and leaves tenant persistence out of the example. A real service should store the returned state and identifiers in its existing account database.
 
 ## Before this ships: Tenant Domain Ownership Gate
 
-Quick start above. Real deploy needs more. Details below apply to Tenant Domain Ownership Gate.
+Quick start is above. For real deployment you'll also need the details below for Tenant Domain Ownership Gate.
 
 **Account & key**
 
